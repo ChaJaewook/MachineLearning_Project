@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[2]:
 
 
 import pandas as pd
@@ -10,21 +10,11 @@ from sklearn import preprocessing
 labelencoder=preprocessing.LabelEncoder()
 from IPython.core.interactiveshell import InteractiveShell
 from sklearn.cluster import DBSCAN
+import random
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
-
-'''
-from sklearn.mixture import GaussianMixture
-from sklearn.utils.testing import ignore.warnings
-from sklearn.exceptions import ConvergeneWarning
-
-model=GaussianMixture(n_components=2, init params='random',random_state=0,tol=1e-9,max_iter=10)
-model.fit(X)
-
-pi=model.predict_proba(X)
-plt.scatter(X[:,0],X[:,1],s=50,, linewidth=1, edgecolors="b")
-
-'''
 ##Show the all data not skip middle data
 InteractiveShell.ast_node_interactivity = "all"
 
@@ -77,7 +67,8 @@ Indicators=Indicators.drop('CountryName',axis=1)
 Indicators['Year']=Indicators['Year']-1960
 
 # Cut the data It's too many dat to calculate the code
-Indicators=Indicators[Indicators['Year']<20]
+Indicators=Indicators[Indicators['Year']>25]
+Indicators=Indicators[Indicators['Year']<40]
 # Reset the index to calculate the dataframe
 Indicators=Indicators.reset_index(drop=True)
 
@@ -107,7 +98,7 @@ Indicators_set['Country_Encoder']=labelencoder.fit_transform(Indicators_set.iloc
 
 count=0
 # Cut the data It's too hard to calculate the all data.
-Indicators_set=Indicators_set[Indicators_set['Country_Encoder']<150]
+Indicators_set=Indicators_set[Indicators_set['Country_Encoder']<200]
 
 #Make the temp dataframe
 Indicator_Sum=pd.DataFrame()
@@ -149,11 +140,16 @@ for i in range(Indicators_set['Country_Encoder'].max()):
     for j in range(Indicators_set['Year'].max()):
         if(Indicators_set[(Indicators_set['Country_Encoder']==i)&(Indicators_set['Year']==j)].empty==False):
             temp=Indicators_set[(Indicators_set['Country_Encoder']==i)&(Indicators_set['Year']==j)&(Indicators_set['IndicatorCode']=='TM.VAL.MRCH.R3.ZS')]
+            
             q_1=temp.iloc[0:1,0]
             q_2=temp.iloc[0:1,4]
+            q_3=temp.iloc[0:1,2]
+            
             temp_1=q_1.values.tolist()
             temp_2=q_2.values.tolist()
+            temp_3=q_2.values.tolist()
             
+            #print(temp)
             if not temp_1:
                 continue
             elif not temp_2:
@@ -162,6 +158,7 @@ for i in range(Indicators_set['Country_Encoder'].max()):
                 Indicator_Sum.iloc[count,0]=temp_1[0]
                 Indicator_Sum.iloc[count,1]=int(temp_2[0])
                 Indicator_Sum.iloc[count,4]=sum(Indicators_set['Value'][(Indicators_set['Country_Encoder']==i)&(Indicators_set['Year']==j)])
+                Indicator_Sum.iloc[count,5]=int(temp_3[0])
                 count=count+1
 #drop unusing data                
 Indicator_Sum=Indicator_Sum.dropna(axis=0)
@@ -177,6 +174,7 @@ for i in range(Indicator_Sum['Country_Encoder'].max()):
 # To seek the unusable dat set the nan value. and It will be droped.
 for i in range(len(Indicator_Sum.iloc[:,1])):
     if Indicator_Sum.iloc[i,3]==0:
+        # 초기화를 위한 Nan 값 설정
         Indicator_Sum.iloc[i,3]=np.nan
 
 # Drop the Unusable data
@@ -187,18 +185,119 @@ Indicator_Sum['Income_Group']=labelencoder.fit_transform(Indicator_Sum.iloc[:,2]
 Indicator_Sum['Region_Encoder']=Indicator_Sum['Region_Encoder'].astype(int)
 print(Indicator_Sum)
 
-#여기까지 잘돈다 밑에 고치기#######################################################################3
+Indicator_Sum['Sum']=Indicator_Sum['Sum']/100000000000
+
+# Draw the data statement
+Data=Indicator_Sum.iloc[:,1:6]
+plt.boxplot(Indicator_Sum['Sum'])
+plt.show()
+
+plt.boxplot(Indicator_Sum['Country_Encoder'])
+plt.show()
+#make the DB Scan model
+model=DBSCAN(eps=7, min_samples=3)
+model.fit(Data)
+y_predict=model.fit_predict(Data)
+# Save the predict value in 'cluster' 
+Data['Cluster']=y_predict
+print('DB SCAN')
+print(Data)
+# to show the result. make the color one color one cluster will save it
+color_=([],[])
+
+
+color_make=max(Data.iloc[:,5])-1*min(Data.iloc[:,5])
+color_=[[0]*3 for k in range(int(color_make))]
+
+for i in range(int(color_make)):
+    color_[i][0]=random.random()##r
+    color_[i][1]=random.random()##g
+    color_[i][2]=random.random()##b
+## scatter plot the each points and check the clustering result    
+for j in range(len(Data)):
+    if Data.iloc[j,5]==-1:
+        plt.scatter(Data.iloc[j,1],Data.iloc[j,3],color='black')
+    else:
+        plt.scatter(Data.iloc[j,1],Data.iloc[j,3],color=(color_[int(Data.iloc[j,5])][0],color_[int(Data.iloc[j,5])][1],color_[int(Data.iloc[j,5])][1]))
+
+
 
 '''
-model=DBSCAN()
-model.fit(Indicator_Sum.iloc[:,1:5])
+# Gaussian Mixture cluster.
+from sklearn.mixture import GaussianMixture
+# Make the GaussianMixture cluster
+model=GaussianMixture(n_components=2, init params='random',random_state=0,tol=1e-9,max_iter=10)
+model.fit(X)
+#Save the cluster result
+pi=model.predict_proba(X)
+plt.scatter(X[:,0],X[:,1],s=50,, linewidth=1, edgecolors="b")
 
-y_predict=model.fit_predict
-print(y_predict)
-Indicator_Sum['cluster']=y_predict
 
-print(Indicator_Sum)
+print('EM Clustering')
+from sklearn.mixture import GMM
+gmm=GMM(n_components=4).fit(Indicator_Sum.iloc[:,1:6])
+labels=gmm.predict(Indicator_Sum.iloc[:,1:6])
+print(labels)
+probs=gmm.predict_proba(X)
+print(probs)
 '''
+
+
+
+## Import the Kmeans model
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+import seaborn as sns
+# Make KMeans model set the cluster 3
+model=KMeans(n_clusters=3,algorithm='auto')
+model.fit(Data)
+Data['cluster']=pd.DataFrame(model.predict(Data))
+
+print('')
+
+print('cluster result')
+print(Data['cluster'])
+print('')
+## scatter plot the each points and check the clustering result    
+for j in range(len(Data)):
+    if Data.iloc[j,5]==0:
+        plt.scatter(Data.iloc[j,1],Data.iloc[j,3],color='black')
+    elif Data.iloc[j,5]==1:
+        plt.scatter(Data.iloc[j,1],Data.iloc[j,3],color='red')
+    else:
+        plt.scatter(Data.iloc[j,1],Data.iloc[j,3],color='green')
+
+
+#Set the GaussianMixture model.
+from sklearn.mixture import GaussianMixture
+
+model=GaussianMixture(n_components=2, 
+                      init_params='random',random_state=0)
+model.fit(Data)
+Data['cluster']=pd.DataFrame(model.predict(Data))
+
+print(Data['cluster'])
+
+for j in range(len(Data)):
+    if Data.iloc[j,5]==0:
+        plt.scatter(Data.iloc[j,1],Data.iloc[j,3],color='black')
+    elif Data.iloc[j,5]==1:
+        plt.scatter(Data.iloc[j,1],Data.iloc[j,3],color='red')
+    else:
+        plt.scatter(Data.iloc[j,1],Data.iloc[j,3],color='green')
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
